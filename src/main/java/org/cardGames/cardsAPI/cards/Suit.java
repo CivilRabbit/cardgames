@@ -18,6 +18,6 @@ public enum Suit {
                 return suit;
             }
         }
-        throw new IllegalArgumentException("Value not found");
+        throw new IllegalArgumentException("Value not found: " + x);
     }
 }
