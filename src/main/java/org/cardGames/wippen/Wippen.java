@@ -1,73 +1,91 @@
 package org.cardGames.wippen;
 
+import lombok.Getter;
+import org.cardGames.cardsAPI.communication.Web.Games;
+import org.cardGames.cardsAPI.game.CardGame;
 import org.cardGames.cardsAPI.Deck.DeckOfCards;
-import org.cardGames.cardsAPI.communication.Communicator;
+import org.cardGames.cardsAPI.communication.Web.GameMessage;
+import org.cardGames.cardsAPI.game.GamePhase;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 
-public class Wippen {
+public class Wippen implements CardGame {
+
 
     private final DeckOfCards drawDeck = new DeckOfCards();
-    private final DeckOfCards onTable = new DeckOfCards();
+    private final DeckOfCards onTable;
     private final List<WipPlayer> players = new ArrayList<>();
+    private UUID turn;
+    @Getter
+    private final Games name = Games.WIPPEN;
 
-    public Wippen(int amountOfPlayers, Communicator communicator) {
+    @Getter
+    private GamePhase gamePhase = GamePhase.NotStarted;
+    private WipPlayer lastToTake = null;
+    private int cardsInHand = 0;
+
+    public Wippen(DeckOfCards table) {
         drawDeck.restoreToFull().shuffle();
-        onTable.empty();
-        for (int i = 0; i < amountOfPlayers; i++) {
-            players.add(new WipPlayer("Player" + i, onTable, communicator));
-        }
+        onTable = table.empty();
     }
 
-    private void deal(boolean firstRound){
-        int counter ;
-        int length = players.size();
-        for (int i = 0; i < 2; i++) {
-            counter = 0;
-            for (WipPlayer player : players) {
-                if (firstRound && (counter++) + 1 == length) {
-                    onTable.giveCards(drawDeck.getCards(2));
-                }
-                int cardsToDeal = drawDeck.size() > 1 ? 2 : drawDeck.size();
-                player.addToHand(drawDeck.getCards(cardsToDeal));
-            }
-            if  (drawDeck.isEmpty()){
-                break;
-            }
-        }
+    public GameMessage TurnOF() { return new GameMessage(null, turn.toString()); }
+
+    public DeckOfCards getCardsFrom(UUID playerId) {
+        WipPlayer player = getWipPlayer(playerId);
+        assert player != null;
+        return player.getHandCards();
     }
 
-    public void startGame(){
+    public boolean addPlayer(UUID player) {
+        if (players.size() < 4 && getWipPlayer(player) == null) {
+            players.add(new WipPlayer(drawDeck, player));
+            return true;
+        }
+        return false;
+    }
+
+    public int maxPlayers(){return 4;}
+
+
+    public void startGame() {
         players.forEach(WipPlayer::reset);
+        onTable.empty();
         deal(true);
-        boolean lastRound = false;
-        WipPlayer lastPlayer = null;
-        while (!drawDeck.isEmpty() || lastRound){
-            for (int i = 0; i < 4; i++) {
-                int tableSize = onTable.size();
-                for (WipPlayer player : players) {
-                    player.play();
-                    if (!drawDeck.isEmpty() && onTable.isEmpty()){
-                        player.giveWip();
-                    }
-                    // what is the last player to take a card
-                    if (onTable.size() < tableSize){lastPlayer = player;}
-                }
-            }
-            if (lastRound){break;}
-            deal(false);
-            lastRound = drawDeck.isEmpty();
-        }
-        assert lastPlayer != null;
-        lastPlayer.giveCards(onTable.getDeck());
-        countScore().forEach((player, score) -> System.out.println(player.name + ": " + score.toString()));
+        turn = players.getFirst().getuuid();
+        gamePhase = GamePhase.Playing;
     }
 
-    private Map<WipPlayer, Integer> countScore(){
+    @Override
+    public GameMessage play(UUID playerId, String input) {
+        if (turn != playerId){
+            return new GameMessage(onTable, "Await You Turn");
+        }
+        WipPlayer player = getWipPlayer(playerId);
+        assert player != null;
+
+        int tableSizeBefore = onTable.size();
+        String result = player.play(input);
+        if (!result.equals("success") && !result.equals("merge")){
+            return new GameMessage(onTable, result);
+        }
+        if (onTable.size() < tableSizeBefore) {
+            lastToTake = player;
+        }
+        if (onTable.isEmpty() && gamePhase == GamePhase.Playing){
+            player.giveWip();
+        }
+
+        if (!result.equals("merge") && gamePhase == GamePhase.Playing || gamePhase == GamePhase.LastRound){
+            advance();
+        }
+        return new GameMessage(onTable, result);
+    }
+
+
+    public GameMessage countScore(){
+        if (lastToTake != null){lastToTake.giveCards(onTable.getDeck());}
         Map<WipPlayer, Integer> scoreBoard = new HashMap<>();
 
         List<Score> scoreList = new ArrayList<>();
@@ -88,6 +106,57 @@ public class Wippen {
 
         WipPlayer mostClubs = playerList.get(Score.mostClubs(scoreList));
         scoreBoard.put(mostClubs, scoreBoard.get(mostClubs) + 2);
-        return scoreBoard;
+        return new GameMessage(null, scoreBoard.toString());
+    }
+
+    private void advance(){
+        int nextTurn = Math.floorMod(players.indexOf(getWipPlayer(turn)) + 1,  players.size());
+        if (nextTurn == 0 && gamePhase == GamePhase.LastRound){
+            gamePhase = GamePhase.Done;
+            return;
+        }else if (nextTurn == 0){
+            if (--cardsInHand == 0) deal(false);
+            turn = players.getFirst().getuuid();
+        }
+        turn = players.get(nextTurn).getuuid();
+    }
+
+    private void deal(boolean firstRound){
+        cardsInHand = 4;
+        int counter ;
+        int length = players.size();
+        for (int i = 0; i < 2; i++) {
+            counter = 0;
+            for (WipPlayer player : players) {
+                if (firstRound && (counter++) + 1 == length) {
+                    onTable.giveCards(drawDeck.getCards(2));
+                }
+                player.addToHand(drawDeck.getCards(2));
+            }
+            if  (drawDeck.isEmpty()){
+                gamePhase = GamePhase.LastRound;
+                break;
+            }
+        }
+    }
+
+    private WipPlayer getWipPlayer(UUID playerId){
+        for (WipPlayer player : players) {
+            if (player.getuuid() .equals(playerId)){
+                return player;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        return (o instanceof Wippen);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash("Wippen");
     }
 }

@@ -1,11 +1,11 @@
 package org.cardGames.wippen;
 
+import lombok.Getter;
 import org.cardGames.cardsAPI.Deck.DeckOfCards;
 import org.cardGames.cardsAPI.cards.Card;
 import org.cardGames.cardsAPI.cards.CardInterface;
 import org.cardGames.cardsAPI.cards.Suit;
 import org.cardGames.cardsAPI.cards.Value;
-import org.cardGames.cardsAPI.communication.Communicator;
 import org.cardGames.cardsAPI.player.PlayerInterFace;
 import org.cardGames.wippen.cards.CardConverter;
 import org.cardGames.wippen.cards.MetaCard;
@@ -13,8 +13,11 @@ import org.cardGames.wippen.cards.MetaCard;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.UUID;
 
 public class WipPlayer implements PlayerInterFace {
+
+    @Getter
     private final DeckOfCards handCards = new DeckOfCards();
     private final List<Card> cardsWon = new ArrayList<>();
     private final CardConverter cardConverter = new CardConverter();
@@ -22,13 +25,16 @@ public class WipPlayer implements PlayerInterFace {
     private int wips = 0;
     private CardInterface build;
     private final ArrayList<CardInterface> metaCards = new ArrayList<>();
-    public final String name;
-    private final Communicator communicator;
+    private final UUID uuid;
+    private String returnMessage;
 
-    public WipPlayer(String name, DeckOfCards table, Communicator communicator) {
+    public UUID getuuid() {
+        return uuid;
+    }
+
+    public WipPlayer(DeckOfCards table, UUID uuid) {
         this.table = table;
-        this.name = name;
-        this.communicator = communicator;
+        this.uuid = uuid;
     }
 
     public void reset(){
@@ -51,56 +57,53 @@ public class WipPlayer implements PlayerInterFace {
         this.wips++;
     }
 
-    public void play(){
-        communicator.sendMessage("Playing " + name);
-        communicator.sendMessage("your cards are: " + handCards);
-        communicator.sendMessage("Cards on the table are: " + table.toString());
-
+    public String play(String input){
+        returnMessage = null;
         if (build != null && !table.getDeck().contains(build)){// build has been stolen
             build = null;
         }
 
-        String s = communicator.receiveMessage();
-
-        List<CardInterface> cards = cardConverter.fromString(s.substring(2));
+        List<CardInterface> cards = cardConverter.fromString(input.substring(2));
         CardInterface myCard = cards.getFirst();
         List<CardInterface> cardFromTable = cards.subList(1, cards.size());
-
-        if (s.startsWith("B")) { // start building
+        if (input.startsWith("B")) { // start building
             if (!isValidBuild(myCard, cardFromTable)) {
-                return;
+                return returnMessage;
             }
             MetaCard newCard = new MetaCard(cards);
             table.giveCard(newCard);
             table.removeCards(cardFromTable);
             build = newCard;
-        } else if (s.startsWith("M")){
+        } else if (input.startsWith("M")){
             if (!cardCheck(null, cards)) {
-                return;
+                return returnMessage;
             }
             table.removeCards(cards);
             MetaCard metaCard = new MetaCard(cards);
             table.giveCard(metaCard);
             metaCards.add(metaCard);
-            play();
-            return;
-        } else if (s.startsWith("D")) {//drop on table
-            if (!isValidDrop(myCard)) {return;}
+            return "merge";
+        } else if (input.startsWith("D")) {//drop on table
+            if (!isValidDrop(myCard)) {return returnMessage;}
             table.giveCard(myCard);
-        } else if (s.startsWith("T")) {// take from table
-            if (!isValidTake((Card) myCard, cardFromTable)) {return;}
+        } else if (input.startsWith("T")) {// take from table
+            if (!isValidTake((Card) myCard, cardFromTable)) {return returnMessage;}
             table.removeCards(cardFromTable);
             build = null;
             this.cardsWon.addAll(cardConverter.flatten(cards));
 
-        } else failure("unrecognized input");
+        } else {
+            failure("unrecognized input");
+            return returnMessage;
+        }
         metaCards.clear();
         handCards.removeCard(myCard);
+        return "success";
     }
 
     private boolean cardCheck(CardInterface myCard, List<CardInterface> cardsFromTable){
         if (myCard != null && !handCards.getDeck().contains(myCard)) {
-            failure("First card is not in you hand");
+            failure( "First card is not in you hand");
             return false;
         }
 
@@ -112,11 +115,10 @@ public class WipPlayer implements PlayerInterFace {
     }
 
     private void failure(String message){
-        communicator.sendMessage(message);
         table.removeCards(metaCards);
         table.giveCards(cardConverter.flatten(metaCards));
         metaCards.clear();
-        play();
+        returnMessage = message;
     }
 
     private boolean isValidDrop(CardInterface myCard){
