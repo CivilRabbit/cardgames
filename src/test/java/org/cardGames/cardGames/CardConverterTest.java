@@ -28,22 +28,22 @@ public class CardConverterTest {
 
     @Test
     public void monoCardConverting() {
-        assertEquals(List.of(C2), converter.fromString("C2"));
-        assertEquals(List.of(DA), converter.fromString("DA"));
-        assertEquals(List.of(H10), converter.fromString("H10"));
-        assertEquals(List.of(SJ), converter.fromString("SJ"));
-        assertEquals(List.of(HQ), converter.fromString("HQ"));
+        assertEquals(List.of(C2), converter.fromString("2C"));
+        assertEquals(List.of(DA), converter.fromString("AD"));
+        assertEquals(List.of(H10), converter.fromString("10H"));
+        assertEquals(List.of(SJ), converter.fromString("JS"));
+        assertEquals(List.of(HQ), converter.fromString("QH"));
     }
     @Test
     public void MultipleCardConverting() {
-        assertEquals(one, converter.fromString("[C2, DA]"));
+        assertEquals(one, converter.fromString("[2C, AD]"));
         var result = List.of(new MetaCard(one));
-        assertEquals(result, converter.fromString("[[C2, DA]]"));
+        assertEquals(result, converter.fromString("[[2C, AD]]"));
     }
 
     @Test
     public void complicatedCardConverting() {
-        assertEquals(three, converter.fromString("[[C2, DA], [[C2, DA]]]"));
+        assertEquals(three, converter.fromString("[[2C, AD], [[2C, AD]]]"));
     }
 
     @Test

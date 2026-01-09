@@ -18,7 +18,12 @@ public record Card(
     }
 
     public static CardInterface fromString(String s){
-        return new Card(Suit.fromString(s.substring(0,1)), Value.fromString(s.substring(1)));
+        if (s.length() == 2){
+            return new Card(Suit.fromString(s.substring(1)), Value.fromString(s.substring(0,1)));
+        }else{
+            return new Card(Suit.fromString(s.substring(2)), Value.fromString(s.substring(0,2).trim()));
+        }
+
     }
 
 
