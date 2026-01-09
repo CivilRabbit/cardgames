@@ -31,13 +31,13 @@ public class GameRoom {
 
     public void startGame() {
         game.startGame();
-        broadCast(new GameMessage(table, "current table"));
+        broadCast(new GameMessage(table, "table"));
         sendTurnOf();
     }
 
     private void sendTurnOf(){
         UUID turn = UUID.fromString(game.TurnOF().message());
-        sendTo(connections.get(turn), new GameMessage(game.getCardsFrom(turn),"It is your turn. Your cards are:"));
+        sendTo(connections.get(turn), new GameMessage(game.getCardsFrom(turn),"player"));
     }
 
     public void broadCast(GameMessage gameMessage) {
@@ -45,11 +45,16 @@ public class GameRoom {
     }
 
     public void handlePlayCard(UUID playerId, String input) {
+        GamePhase gm = game.getGamePhase();
+        if (!gm.equals(GamePhase.Playing) && !gm.equals(GamePhase.LastRound) ) {
+            sendTo(connections.get(playerId), new GameMessage(null, "Be patient. Game not started"));
+            return;
+        }
         sendTo(connections.get(playerId), game.play(playerId, input));
         if (game.getGamePhase() == GamePhase.Done){
             broadCast(game.countScore());
         }
-        broadCast(new GameMessage(table, "Current table"));
+        broadCast(new GameMessage(table, "table"));
         sendTurnOf();
     }
 
