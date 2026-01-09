@@ -34,7 +34,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             returnMessage = gameRoomManager.createRoom(Games.valueOf(split[1].toUpperCase()), player);
         }
         else if (split[0].contains("start")) gameRoomManager.startGame(player.uuid);
-        else if (split[0].contains("rooms")) returnMessage = gameRoomManager.getRooms().toString();
+        else if (split[0].contains("rooms")) returnMessage = "available rooms" + gameRoomManager.getRooms().toString();
         else gameRoomManager.handlePlayCard(player.uuid, msg);
         if (returnMessage != null) player.send(new GameMessage(null, returnMessage));
     }
