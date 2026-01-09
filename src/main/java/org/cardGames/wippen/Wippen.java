@@ -40,7 +40,7 @@ public class Wippen implements CardGame {
 
     public boolean addPlayer(UUID player) {
         if (players.size() < 4 && getWipPlayer(player) == null) {
-            players.add(new WipPlayer(drawDeck, player));
+            players.add(new WipPlayer(onTable, player));
             return true;
         }
         return false;
