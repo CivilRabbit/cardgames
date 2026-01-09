@@ -31,13 +31,8 @@ public class GameRoom {
 
     public void startGame() {
         game.startGame();
+        connections.values().forEach(p -> p.send(new GameMessage(game.getCardsFrom(p.uuid), "player")));
         broadCast(new GameMessage(table, "table"));
-        sendTurnOf();
-    }
-
-    private void sendTurnOf(){
-        UUID turn = UUID.fromString(game.TurnOF().message());
-        sendTo(connections.get(turn), new GameMessage(game.getCardsFrom(turn),"player"));
     }
 
     public void broadCast(GameMessage gameMessage) {
@@ -45,20 +40,18 @@ public class GameRoom {
     }
 
     public void handlePlayCard(UUID playerId, String input) {
+        NetworkPlayer player = connections.get(playerId);
         GamePhase gm = game.getGamePhase();
         if (!gm.equals(GamePhase.Playing) && !gm.equals(GamePhase.LastRound) ) {
-            sendTo(connections.get(playerId), new GameMessage(null, "Be patient. Game not started"));
+            player.send(new GameMessage(null, "Be patient. Game not started"));
             return;
         }
-        sendTo(connections.get(playerId), game.play(playerId, input));
+        player.send(game.play(playerId, input));
         if (game.getGamePhase() == GamePhase.Done){
             broadCast(game.countScore());
         }
+        player.send(new GameMessage(game.getCardsFrom(playerId),"player"));
         broadCast(new GameMessage(table, "table"));
-        sendTurnOf();
-    }
 
-    public void sendTo(NetworkPlayer player, GameMessage message) {
-        player.send(message);
     }
 }
