@@ -14,7 +14,7 @@ public record Card(
     @NotNull
     @Override
     public String toString() {
-        return suit.toString() + value.toString();
+        return value.toString()  + suit.toString();
     }
 
     public static CardInterface fromString(String s){
